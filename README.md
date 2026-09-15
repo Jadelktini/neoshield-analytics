@@ -61,29 +61,8 @@ Le suivi des métriques clés de performance (KPIs) et des transactions est réa
 
 ### Aperçu du Dashboard
 
-Une capture du dashboard est disponible dans :
-![NeoShield Dashboard](docs/dashboard.png)
-
-```text
-docs/imgaes/dashboard_superset.png
-```
-
-Vous pouvez également l'afficher directement dans GitHub avec :
-
-```markdown
-![NeoShield Dashboard](docs/imgaes/dashboard_superset.png)
-```
-
-### 📈 Indicateurs visualisés
-
-* **Fraud Rate** : proportion de transactions identifiées comme frauduleuses.
-* **Transaction Volume** : évolution du nombre de transactions dans le temps.
-* **Transaction Amount** : évolution des montants traités.
-* **ALLOW / FLAG / BLOCK Distribution** : répartition des décisions du moteur.
-* **Risk Score Distribution** : distribution des scores générés par le modèle XGBoost.
-* **Geographical Risk** : analyse du risque par pays.
-* **Merchant Category Risk** : analyse du risque par catégorie de marchand.
-* **High-Risk Transactions** : identification des transactions présentant des caractéristiques suspectes.
+Une capture du dashboard est disponible :
+![NeoShield Dashboard](docs/images/dashboard_superset.pngdashboard.png)
 
 ---
 
