@@ -62,6 +62,7 @@ Le suivi des métriques clés de performance (KPIs) et des transactions est réa
 ### Aperçu du Dashboard
 
 Une capture du dashboard est disponible dans :
+![NeoShield Dashboard](docs/dashboard.png)
 
 ```text
 docs/imgaes/dashboard_superset.png
