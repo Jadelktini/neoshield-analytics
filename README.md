@@ -64,13 +64,13 @@ Le suivi des métriques clés de performance (KPIs) et des transactions est réa
 Une capture du dashboard est disponible dans :
 
 ```text
-docs/dashboard_screenshot.png
+docs/imgaes/dashboard_superset.png
 ```
 
 Vous pouvez également l'afficher directement dans GitHub avec :
 
 ```markdown
-![NeoShield Dashboard](docs/dashboard_screenshot.png)
+![NeoShield Dashboard](docs/imgaes/dashboard_superset.png)
 ```
 
 ### 📈 Indicateurs visualisés
