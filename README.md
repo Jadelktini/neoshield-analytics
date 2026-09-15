@@ -1,4 +1,4 @@
-# 🛡️ NeoShield Analytics — Real-Time Credit Card Fraud Detection & Analytics Platform
+# 🛡️ NeoShield Analytics — Plateforme de détection et d’analyse des fraudes par carte bancaire en temps réel
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
