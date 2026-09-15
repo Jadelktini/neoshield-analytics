@@ -24,12 +24,19 @@ def seed_database():
     lat_col = 'latitude' if 'latitude' in df.columns else 'lat'
     lon_col = 'longitude' if 'longitude' in df.columns else 'lon'
 
-    # Mapping compatible avec ton fichier .env (DB_*) et le fallback (POSTGRES_*)
+    # Mapping sécurisé sans mot de passe en clair dans le code
     host = os.getenv("DB_HOST") or os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("DB_PORT") or os.getenv("POSTGRES_PORT", "5432")
     db = os.getenv("DB_NAME") or os.getenv("POSTGRES_DB", "neoshield_fraud")
     user = os.getenv("DB_USER") or os.getenv("POSTGRES_USER", "analyst_user")
-    password = os.getenv("DB_PASS") or os.getenv("POSTGRES_PASSWORD", "FintechSecurePassword2026")
+    password = os.getenv("DB_PASS") or os.getenv("POSTGRES_PASSWORD")
+
+    # Vérification explicite du mot de passe
+    if not password:
+        raise ValueError(
+            "❌ Erreur de sécurité : Aucun mot de passe trouvé. "
+            "Veuillez définir DB_PASS ou POSTGRES_PASSWORD dans votre fichier .env."
+        )
 
     print(f"🔌 Connexion à PostgreSQL ({host}:{port}) pour la base '{db}' avec l'utilisateur '{user}'...")
     

@@ -1,150 +1,147 @@
-import os
-import sys
-import uuid
-from pathlib import Path
-from datetime import datetime
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel, Field
+from typing import List, Optional
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import joblib
 import pandas as pd
-import psycopg2
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from datetime import datetime
+import os
 
-load_dotenv()
+# Import des configurations sécurisées
+from api.config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
 
 app = FastAPI(
-    title="NeoShield Analytics - Fraud Detection API",
+    title="NeoShield Analytics API",
+    description="API temps réel de détection de fraude et scoring de risque par carte bancaire",
     version="1.0.0"
 )
 
 # Chargement du modèle XGBoost
-MODEL_PATH = Path("ml_models/fraud_detector_model.pkl")
-
-if MODEL_PATH.exists():
+MODEL_PATH = "ml_models/fraud_detector_model.pkl"
+try:
     model = joblib.load(MODEL_PATH)
-else:
+except Exception as e:
     model = None
+    print(f"⚠️ Avertissement : Impossible de charger le modèle ML depuis {MODEL_PATH} ({e})")
 
-# Variables de connexion PostgreSQL (depuis .env avec fallback)
-DB_HOST = os.getenv("DB_HOST") or os.getenv("POSTGRES_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT") or os.getenv("POSTGRES_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME") or os.getenv("POSTGRES_DB", "neoshield_fraud")
-DB_USER = os.getenv("DB_USER") or os.getenv("POSTGRES_USER", "analyst_user")
-DB_PASS = os.getenv("DB_PASS") or os.getenv("POSTGRES_PASSWORD", "FintechSecurePassword2026")
-
-def get_db_connection():
-    return psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASS
-    )
-
+# Schemas Pydantic
 class TransactionPayload(BaseModel):
     user_id: int
     card_id: int
-    amount: float
+    amount: float = Field(..., gt=0, description="Montant de la transaction")
     currency: str = "EUR"
     merchant_category: str
     merchant_country: str
-    kyc_status: str
+    kyc_status: Optional[str] = "verified"
     lat: float
     lon: float
 
+class EvaluationResponse(BaseModel):
+    status: str
+    transaction_id: str
+    action: str
+    risk_score: float
+    triggered_rules: List[str]
+    evaluated_at: str
+
+def get_db_connection():
+    try:
+        return psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS,
+            cursor_factory=RealDictCursor
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur de connexion à la base de données: {str(e)}"
+        )
+
 @app.get("/")
 def health_check():
-    return {"status": "ok", "service": "NeoShield Engine", "model_loaded": model is not None}
+    return {"status": "online", "service": "NeoShield Analytics Engine"}
 
-@app.post("/api/v1/transactions/evaluate")
+@app.post("/api/v1/transactions/evaluate", response_model=EvaluationResponse)
 def evaluate_transaction(payload: TransactionPayload):
-    if model is None:
-        raise HTTPException(status_code=500, detail="Modèle ML non chargé.")
-
-    # 1. Feature Engineering (aligné sur l'entraînement)
-    high_risk_countries = ['KY', 'PA', 'PR', 'RU', 'NG']
-    high_risk_categories = ['crypto', 'casino', 'gambling']
-
-    is_high_risk_country = 1 if payload.merchant_country in high_risk_countries else 0
-    is_crypto_or_casino = 1 if payload.merchant_category in high_risk_categories else 0
-
-    time_diff = 999999.0
-    distance_km = 0.0
-    speed_kmh = 0.0
-
-    # 2. Prédiction XGBoost
-    df_features = pd.DataFrame({
-        'amount': [payload.amount],
-        'time_diff': [time_diff],
-        'distance_km': [distance_km],
-        'speed_kmh': [speed_kmh],
-        'is_high_risk_country': [is_high_risk_country],
-        'is_crypto_or_casino': [is_crypto_or_casino]
-    })
-
-    ai_risk_score = float(model.predict_proba(df_features)[0][1])
-
-    # 3. Règles métier hybrides
     triggered_rules = []
-    if is_high_risk_country:
+    
+    # 1. Moteur de règles métier
+    high_risk_countries = ["KY", "PR", "VG", "IR", "KP"]
+    suspicious_categories = ["crypto", "casino", "wire_transfer"]
+    
+    if payload.merchant_country.upper() in high_risk_countries:
         triggered_rules.append("HIGH_RISK_COUNTRY")
-    if is_crypto_or_casino:
+        
+    if payload.merchant_category.lower() in suspicious_categories:
         triggered_rules.append("SUSPICIOUS_MERCHANT_CATEGORY")
-    if payload.amount > 5000:
+        
+    if payload.amount > 5000.00:
         triggered_rules.append("HIGH_AMOUNT_TRANSACTION")
 
-    # Décision & flag is_fraud (1 pour BLOCK, 0 pour ALLOW/FLAG)
-    if ai_risk_score > 0.7 or "HIGH_RISK_COUNTRY" in triggered_rules:
+    # 2. Inférence du modèle Machine Learning (XGBoost)
+    risk_score = 0.05
+    if model is not None:
+        try:
+            # Structuration des features pour le modèle
+            features_df = pd.DataFrame([{
+                'amount': payload.amount,
+                'lat': payload.lat,
+                'lon': payload.lon,
+                'is_high_risk_country': 1 if payload.merchant_country.upper() in high_risk_countries else 0,
+                'is_suspicious_category': 1 if payload.merchant_category.lower() in suspicious_categories else 0
+            }])
+            probabilities = model.predict_proba(features_df)
+            risk_score = float(probabilities[0][1])
+        except Exception as e:
+            risk_score = 0.50
+            triggered_rules.append("MODEL_INFERENCE_FALLBACK")
+
+    # 3. Moteur de Décision Hybride
+    if risk_score >= 0.80 or "HIGH_RISK_COUNTRY" in triggered_rules:
         action = "BLOCK"
-        is_fraud_val = 1
-    elif ai_risk_score > 0.3 or len(triggered_rules) > 0:
+    elif risk_score >= 0.40 or len(triggered_rules) > 0:
         action = "FLAG"
-        is_fraud_val = 0
     else:
         action = "ALLOW"
-        is_fraud_val = 0
 
-    # Generer un ID de transaction unique et capturer l'heure exacte
-    tx_id = f"TX_API_{uuid.uuid4().hex[:8]}"
-    current_time = datetime.utcnow()
+    tx_id = f"TX_API_{os.urandom(4).hex()}"
+    evaluated_at = datetime.utcnow().isoformat()
 
-    # 4. Insertion PostgreSQL dans la table 'transactions'
+    # 4. Persistance PostgreSQL
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        insert_query = """
+        is_fraud_val = 1 if action == "BLOCK" else 0
+        cursor.execute("""
             INSERT INTO transactions (
-                transaction_id, card_id, timestamp, amount, 
-                latitude, longitude, merchant_country, merchant_category, is_fraud
+                transaction_id, card_id, timestamp, amount, latitude, longitude,
+                merchant_country, merchant_category, is_fraud
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-        """
-        
-        cur.execute(insert_query, (
-            tx_id,
-            str(payload.card_id),
-            current_time,
-            payload.amount,
-            payload.lat,
-            payload.lon,
-            payload.merchant_country,
-            payload.merchant_category,
-            is_fraud_val
+        """, (
+            tx_id, str(payload.card_id), evaluated_at, payload.amount,
+            payload.lat, payload.lon, payload.merchant_country,
+            payload.merchant_category, is_fraud_val
         ))
-        
         conn.commit()
-        cur.close()
-        conn.close()
-        print(f"--> [DB SUCCESS] Transaction {tx_id} insérée dans PostgreSQL !")
     except Exception as e:
-        print(f"--> [DB ERROR] Échec de l'insertion SQL: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur d'insertion DB: {str(e)}")
+        conn.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur d'enregistrement PostgreSQL: {str(e)}"
+        )
+    finally:
+        cursor.close()
+        conn.close()
 
-    return {
-        "status": "success",
-        "transaction_id": tx_id,
-        "action": action,
-        "risk_score": round(ai_risk_score, 4),
-        "triggered_rules": triggered_rules,
-        "evaluated_at": current_time.isoformat()
-    }
+    return EvaluationResponse(
+        status="success",
+        transaction_id=tx_id,
+        action=action,
+        risk_score=round(risk_score, 4),
+        triggered_rules=triggered_rules,
+        evaluated_at=evaluated_at
+    )

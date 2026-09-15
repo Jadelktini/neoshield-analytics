@@ -1,24 +1,47 @@
-# Environment variables
+# ==========================================
+# SECRETS ET CONFIGURATIONS SENSIBLES
+# ==========================================
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
 
-# Python
+# ==========================================
+# ENVIRONNEMENTS VIRTUELS ET PYTHON
+# ==========================================
+venv/
+.venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-venv/
-ENV/
-env/
 
-# Jupyter Notebooks
-.ipynb_checkpoints/
+# ==========================================
+# BASE DE DONNÉES ET DATA LOCALES
+# ==========================================
+*.sqlite3
+*.db
+postgres_data/
+data/raw/
+data/processed/
 
-# IDE
+# ==========================================
+# DOCKER & LOGS
+# ==========================================
+*.log
+logs/
+.docker/
+
+# ==========================================
+# FICHIERS D'ÉDITEURS ET SYSTÈME (IDE)
+# ==========================================
 .vscode/
 .idea/
-
-# Docker volumes / Persisted Data
-postgres_data/
-superset_home/
+.DS_Store
+Thumbs.db

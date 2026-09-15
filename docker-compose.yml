@@ -1,20 +1,44 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
+  db:
+    image: postgres:15
     container_name: neoshield_db
     restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-neoshield_fraud}
-      POSTGRES_USER: ${DB_USER:-analyst_user}
-      POSTGRES_PASSWORD: ${DB_PASS:-FintechSecurePassword2026}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/01_init.sql
-      - ./database/functions/hybrid_rules.sql:/docker-entrypoint-initdb.d/02_hybrid_rules.sql
+
+  api:
+    build: .
+    container_name: neoshield_api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+    depends_on:
+      - db
+
+  superset:
+    image: apache/superset
+    container_name: neoshield_superset
+    restart: always
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+    depends_on:
+      - db
 
 volumes:
   postgres_data:
